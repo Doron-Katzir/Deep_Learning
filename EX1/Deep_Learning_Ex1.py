@@ -101,7 +101,7 @@ def evaluate(model, loader, device):
 # -------------------------
 # 4. Training
 # -------------------------
-def train_model(config_name, model, train_loader, test_loader, device, num_epochs=15,
+def train_model(config_name, model, train_loader, test_loader, device, num_epochs=50,
                 weight_decay=0.0, logdir="runs"):
     writer = SummaryWriter(log_dir=os.path.join(logdir, config_name))
 
@@ -237,7 +237,7 @@ def main():
     ensure_dir(plots_dir)
     ensure_dir(ckpt_dir)
 
-    num_epochs = 15
+    num_epochs = 50
     epochs = list(range(1, num_epochs + 1))
 
     for cfg in configs:
