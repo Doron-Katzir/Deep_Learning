@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
 
 # Reproducibility
 def seed_everything(seed=42):
@@ -91,11 +92,13 @@ def train_model(name, model, train_loader, test_loader, device, num_epochs=25, w
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=weight_decay)
     model.to(device)
-
+    writer = SummaryWriter(log_dir=os.path.join("runs", name))
     train_acc_hist, test_acc_hist = [], []
 
     for epoch in range(1, num_epochs + 1):
         model.train()
+        running_loss = 0.0
+        num_batches = 0
         for images, labels in train_loader:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -103,12 +106,21 @@ def train_model(name, model, train_loader, test_loader, device, num_epochs=25, w
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-
+            running_loss += loss.item()
+            num_batches += 1
+        avg_train_loss = running_loss / max(1, num_batches)
         tr_acc = evaluate_acc(model, train_loader, device)
         te_acc = evaluate_acc(model, test_loader, device)
         train_acc_hist.append(tr_acc); test_acc_hist.append(te_acc)
-        print(f"[{name}] Epoch {epoch:02d}/{num_epochs}  TrainAcc={tr_acc:.2f}%  TestAcc={te_acc:.2f}%")
 
+        writer.add_scalar("Loss/Train", avg_train_loss, epoch)
+        writer.add_scalar("Accuracy/Train", tr_acc, epoch)
+        writer.add_scalar("Accuracy/Test", te_acc, epoch)
+
+        print(f"[{name}] Epoch {epoch:02d}/{num_epochs}  "
+              f"TrainLoss={avg_train_loss:.4f}  TrainAcc={tr_acc:.2f}%  TestAcc={te_acc:.2f}%")
+
+    writer.close()
     return train_acc_hist, test_acc_hist, model
 
 # Plotting
@@ -145,12 +157,10 @@ def main():
     print("Using device:", device.type)
     train_loader, test_loader = get_dataloaders(batch_size=128)
 
-    configs = [
-        {"name": "Baseline",    "use_dropout": False, "use_batchnorm": False, "weight_decay": 0.0},
+    configs = [{"name": "Baseline",    "use_dropout": False, "use_batchnorm": False, "weight_decay": 0.0},
         {"name": "Dropout",     "use_dropout": True,  "use_batchnorm": False, "weight_decay": 0.0},
         {"name": "WeightDecay", "use_dropout": False, "use_batchnorm": False, "weight_decay": 5e-4},
-        {"name": "BatchNorm",   "use_dropout": False, "use_batchnorm": True,  "weight_decay": 0.0},
-    ]
+        {"name": "BatchNorm",   "use_dropout": False, "use_batchnorm": True,  "weight_decay": 0.0},]
 
     ensure_dir("plots")
     ensure_dir("plots_combined")
@@ -164,8 +174,7 @@ def main():
         model = LeNet5(use_dropout=cfg["use_dropout"], use_batchnorm=cfg["use_batchnorm"])
         tr_hist, te_hist, model = train_model(
             cfg["name"], model, train_loader, test_loader, device,
-            num_epochs=num_epochs, weight_decay=cfg["weight_decay"]
-        )
+            num_epochs=num_epochs, weight_decay=cfg["weight_decay"])
 
         # Save weights
         torch.save(model.state_dict(), os.path.join("checkpoints", f"{cfg['name']}.pt"))

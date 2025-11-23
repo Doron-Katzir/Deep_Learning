@@ -1,5 +1,0 @@
-Model,Final Train Accuracy (%),Final Test Accuracy (%)
-Baseline,92.45,89.85
-Dropout,90.98,89.67
-WeightDecay,92.22,90.33
-BatchNorm,94.41,91.25
