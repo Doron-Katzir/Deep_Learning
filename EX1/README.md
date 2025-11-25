@@ -57,7 +57,15 @@ The code generates three folders in the directory from which it runs:
 * WeightDecay.pt
 * BatchNorm.pt
 
-4\. runs - TensorBoard logging directory.
+4\. runs - TensorBoard logging directory. To use TensorBoard type:
+
+
+
+tensorboard --logdir runs
+
+
+
+in terminal from the directory.
 
 
 

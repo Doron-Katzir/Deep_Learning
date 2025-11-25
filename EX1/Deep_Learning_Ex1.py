@@ -88,7 +88,7 @@ def evaluate_acc(model, loader, device):
     return 100.0 * correct / total
 
 # Training
-def train_model(name, model, train_loader, test_loader, device, num_epochs=25, weight_decay=0.0):
+def train_model(name, model, train_loader, test_loader, device, num_epochs=50, weight_decay=0.0):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=weight_decay)
     model.to(device)
@@ -167,7 +167,7 @@ def main():
     ensure_dir("checkpoints")
 
     results = []
-    num_epochs = 25
+    num_epochs = 50
     epochs = list(range(1, num_epochs + 1))
 
     for cfg in configs:
