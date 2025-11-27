@@ -139,6 +139,14 @@ class RNNModel(nn.Module):
 # -----------------------
 # Training and evaluation
 # -----------------------
+def nll_loss(scores, y, batch_size=20):
+    """Loss function from ex2.ipynb - returns sum scaled by batch_size"""
+    expscores = scores.exp()
+    probabilities = expscores / expscores.sum(1, keepdim=True)
+    y_flat = y.reshape(-1)
+    answerprobs = probabilities[range(len(y_flat)), y_flat]
+    return torch.mean(-torch.log(answerprobs) * batch_size)
+
 def repackage_hidden(h):
     # h is now a list of hidden states (one per layer)
     if isinstance(h, list):
@@ -160,8 +168,8 @@ def evaluate(model, data_source, criterion, bptt):
         for i in range(0, data_source.size(0)-1, bptt):
             data, targets = get_batch(data_source, i, bptt)
             output, hidden = model(data, hidden)
-            loss = criterion(output, targets)
-            total_loss += loss.item() * data.size(0)
+            loss = nll_loss(output, targets, batch_size=data.size(1))
+            total_loss += loss.item() * data.size(0) / data.size(1)  # Divide by batch_size since loss is scaled
             hidden = repackage_hidden(hidden)
     avg_loss = total_loss / (data_source.size(0)-1)
     return avg_loss
@@ -179,12 +187,14 @@ def train_epoch(model, train_data, optimizer, criterion, bptt, batch_size, clip,
         hidden = repackage_hidden(hidden)
         optimizer.zero_grad()
         output, hidden = model(data, hidden)
-        loss = criterion(output, targets)
+        # Use ex2.ipynb loss function
+        loss = nll_loss(output, targets, batch_size=data.size(1))
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        total_loss += loss.item() * data.size(0)
+        # loss is already scaled by batch_size, so divide it back out for proper averaging
+        total_loss += (loss.item() / data.size(1)) * data.size(0)
         iters += data.size(0)
 
         if (idx+1) % 50 == 0:
