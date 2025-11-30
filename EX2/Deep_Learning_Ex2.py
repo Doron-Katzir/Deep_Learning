@@ -1,24 +1,3 @@
-#!/usr/bin/env python3
-"""
-deep_learning_ex2.py
-
-Practical part for Exercise 2 (Penn Treebank language modelling).
-Implements the "small" Zaremba model (200 hidden units) in LSTM and GRU variants,
-with/without dropout. Logs training & validation perplexity to TensorBoard,
-saves checkpoints, and writes summary CSV and PNG plots.
-
-Usage examples:
-  # LSTM without dropout (use recommended hyperparams in README)
-  python deep_learning_ex2.py --data /path/to/ptb --model lstm --dropout 0.0 --epochs 25 --save_dir ./checkpoints/lstm_nodrop
-
-  # GRU with dropout
-  python deep_learning_ex2.py --data /path/to/ptb --model gru --dropout 0.5 --epochs 35 --save_dir ./checkpoints/gru_drop
-
-Requirements:
-  pip install torch torchvision tensorboard matplotlib tqdm
-  (or use poetry: poetry add torch torchvision tensorboard matplotlib tqdm)
-"""
-
 import os
 import math
 import time
@@ -33,9 +12,6 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 from tqdm import trange
 
-# -----------------------
-# Device selection: MPS -> CUDA -> CPU
-# -----------------------
 if torch.backends.mps.is_available():
     device = torch.device("mps")
     print("Using device: MPS (Apple Silicon)")
@@ -139,14 +115,6 @@ class RNNModel(nn.Module):
 # -----------------------
 # Training and evaluation
 # -----------------------
-def nll_loss(scores, y, batch_size=20):
-    """Loss function from ex2.ipynb - returns sum scaled by batch_size"""
-    expscores = scores.exp()
-    probabilities = expscores / expscores.sum(1, keepdim=True)
-    y_flat = y.reshape(-1)
-    answerprobs = probabilities[range(len(y_flat)), y_flat]
-    return torch.mean(-torch.log(answerprobs) * batch_size)
-
 def repackage_hidden(h):
     # h is now a list of hidden states (one per layer)
     if isinstance(h, list):
@@ -160,7 +128,7 @@ def repackage_hidden(h):
 def evaluate(model, data_source, criterion, bptt):
     model.eval()
     total_loss = 0.0
-    ntokens = model.decoder.out_features
+    total_tokens = 0
     # Use the actual batch size from the data (data_source.size(1))
     batch_size = data_source.size(1)
     hidden = model.init_hidden(batch_size)
@@ -168,10 +136,11 @@ def evaluate(model, data_source, criterion, bptt):
         for i in range(0, data_source.size(0)-1, bptt):
             data, targets = get_batch(data_source, i, bptt)
             output, hidden = model(data, hidden)
-            loss = nll_loss(output, targets, batch_size=data.size(1))
-            total_loss += loss.item() * data.size(0) / data.size(1)  # Divide by batch_size since loss is scaled
+            loss = criterion(output, targets)  # Sum of per-token losses
+            total_loss += loss.item()
+            total_tokens += len(targets)  # Count actual tokens
             hidden = repackage_hidden(hidden)
-    avg_loss = total_loss / (data_source.size(0)-1)
+    avg_loss = total_loss / total_tokens  # Average per token
     return avg_loss
 
 def train_epoch(model, train_data, optimizer, criterion, bptt, batch_size, clip, writer, epoch):
@@ -187,22 +156,21 @@ def train_epoch(model, train_data, optimizer, criterion, bptt, batch_size, clip,
         hidden = repackage_hidden(hidden)
         optimizer.zero_grad()
         output, hidden = model(data, hidden)
-        # Use ex2.ipynb loss function
-        loss = nll_loss(output, targets, batch_size=data.size(1))
+        loss = criterion(output, targets)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        # loss is already scaled by batch_size, so divide it back out for proper averaging
-        total_loss += (loss.item() / data.size(1)) * data.size(0)
-        iters += data.size(0)
+        # criterion with reduction='sum' returns sum of losses
+        total_loss += loss.item()
+        iters += len(targets)
 
         if (idx+1) % 50 == 0:
             cur_loss = total_loss / iters
             cur_ppl = math.exp(cur_loss)
             pbar.set_postfix({'ppl': f"{cur_ppl:.2f}"})
 
-    avg_loss = total_loss / (train_data.size(0)-1)
+    avg_loss = total_loss / iters  # iters = total_tokens
     return avg_loss
 
 # -----------------------
@@ -259,7 +227,7 @@ def run_experiment(args):
 
     # 2) model (small Zaremba: 2 layers, 200 hidden units)
     model = RNNModel(args.model, vocab_size, emb_size=200, hidden_size=200, num_layers=2, dropout=args.dropout).to(device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(reduction='sum')
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
     else:
@@ -313,8 +281,6 @@ def run_experiment(args):
                 g['lr'] /= args.lr_decay
             print(f"Decayed learning rate. New lr: {optimizer.param_groups[0]['lr']:.4f}")
 
-        # optionally early-stop or continue
-
     # evaluate best model on train/valid/test
     print("Loading best model:", best_path)
     model.load_state_dict(torch.load(best_path, map_location=device))
@@ -347,19 +313,19 @@ def run_experiment(args):
 # -----------------------
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument('--data', type=str, required=True, help='path with train.txt valid.txt test.txt (PTB from Moodle)')
+    p.add_argument('--data', type=str, required=True)
     p.add_argument('--model', choices=['lstm', 'gru'], default='lstm')
     p.add_argument('--dropout', type=float, default=0.0)
-    p.add_argument('--epochs', type=int, default=39, help='total epochs')
+    p.add_argument('--epochs', type=int, default=9, help='total epochs ')
     p.add_argument('--batch_size', type=int, default=20)
     p.add_argument('--bptt', type=int, default=35, help='sequence length')
-    p.add_argument('--lr', type=float, default=1.0, help='initial learning rate (SGD)')
+    p.add_argument('--lr', type=float, default=1.0, help='initial learning rate')
     p.add_argument('--optimizer', choices=['sgd','adam'], default='sgd')
     p.add_argument('--clip', type=float, default=5.0, help='gradient clipping')
     p.add_argument('--save_dir', type=str, default='./checkpoints')
     p.add_argument('--logdir', type=str, default='./runs')
-    p.add_argument('--nonmono', type=int, default=6, help='start LR decay after epoch 6')
-    p.add_argument('--lr_decay', type=float, default=1.2, help='LR decay divisor')
+    p.add_argument('--nonmono', type=int, default=5, help='start LR decay after epoch 5')
+    p.add_argument('--lr_decay', type=float, default=2.0, help='LR decay divisor (divide by 2.0)')
     return p.parse_args()
 
 # -----------------------
