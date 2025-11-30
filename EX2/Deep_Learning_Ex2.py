@@ -27,12 +27,10 @@ else:
 # -----------------------
 def read_words(filename):
     with open(filename, 'r', encoding='utf-8') as f:
-        # Match ex2.ipynb: start from index 1, split by space
         return f.read()[1:].split(' ')
 
 def build_vocab(train_path):
     words = read_words(train_path)
-    # Match ex2.ipynb: alphabetically sorted vocabulary
     unique_words = sorted(set(words))
     vocab = {w: i for i, w in enumerate(unique_words)}
     itos = {i: w for w, i in vocab.items()}
@@ -68,7 +66,6 @@ class RNNModel(nn.Module):
         self.num_layers = num_layers
         self.hidden_size = hidden_size
 
-        # Create separate single-layer RNNs (like ex2.ipynb)
         if self.rnn_type == 'lstm':
             self.rnns = [nn.LSTM(hidden_size, hidden_size) for _ in range(num_layers)]
         elif self.rnn_type == 'gru':
@@ -82,7 +79,7 @@ class RNNModel(nn.Module):
         self.init_weights()
 
     def init_weights(self):
-        initrange = 0.05  # Use 0.05 like in ex2.ipynb
+        initrange = 0.05
         # Initialize ALL parameters uniformly
         for param in self.parameters():
             nn.init.uniform_(param, -initrange, initrange)
