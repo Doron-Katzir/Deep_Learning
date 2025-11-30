@@ -37,7 +37,7 @@ python Deep_Learning_Ex2.py --data ./PTB --model gru --dropout 0.0 --epochs 13 -
 ### 4. GRU with Dropout
 
 ```bash
-python Deep_Learning_Ex2.py --data ./PTB --model gru --dropout 0.5 --epochs 82 --lr 0.3 --nonmono 60 --lr_decay 1.2 --save_dir ./checkpoints/gru_drop
+python Deep_Learning_Ex2.py --data ./PTB --model gru --dropout 0.5 --epochs 75 --lr 0.25 --nonmono 60 --lr_decay 1.2 --save_dir ./checkpoints/gru_drop
 ```
 
 **Target:** Validation perplexity < 100
