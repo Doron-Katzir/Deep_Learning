@@ -293,15 +293,16 @@ def train_vae(args):
     torch.save(model.state_dict(), final_model_path)
     print(f'\nSaved final model: {final_model_path}')
 
-    # Plot training curves
+    # Plot training curves with log scale
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses, label='Train Loss')
     plt.plot(test_losses, label='Test Loss')
     plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.ylabel('Loss (log scale)')
+    plt.yscale('log')
     plt.title('VAE Training Curves')
     plt.legend()
-    plt.grid(True)
+    plt.grid(True, which="both", ls="-", alpha=0.2)
     plt.savefig(os.path.join(args.save_dir, 'training_curves.png'))
     plt.close()
     print(f'Saved training curves')
@@ -541,6 +542,179 @@ def run_all_experiments(args):
 
 
 # ============================================================================
+# COMPARE DATASETS
+# ============================================================================
+
+def compare_datasets(args):
+    """Compare results between different datasets"""
+    import subprocess
+
+    # Determine which datasets to run
+    datasets_to_run = []
+    if args.datasets in ['fashion', 'both']:
+        datasets_to_run.append(('fashion_mnist', args.fashion_vae, args.fashion_save_dir, 'Fashion MNIST'))
+    if args.datasets in ['mnist', 'both']:
+        datasets_to_run.append(('mnist', args.mnist_vae, args.mnist_save_dir, 'MNIST'))
+
+    print("="*70)
+    if args.datasets == 'both':
+        print("M1 VAE COMPARISON: MNIST vs Fashion MNIST")
+    elif args.datasets == 'mnist':
+        print("M1 VAE: MNIST")
+    else:
+        print("M1 VAE: Fashion MNIST")
+    print("="*70)
+
+    # Check if VAE checkpoints exist
+    missing_checkpoints = []
+    for dataset, vae_path, save_dir, name in datasets_to_run:
+        if not os.path.exists(vae_path):
+            missing_checkpoints.append(f"{name} VAE: {vae_path}")
+
+    if missing_checkpoints:
+        print("\n⚠️  Missing VAE checkpoints:")
+        for cp in missing_checkpoints:
+            print(f"  - {cp}")
+        print("\nPlease train the VAE models first:")
+        for dataset, vae_path, save_dir, name in datasets_to_run:
+            if not os.path.exists(vae_path):
+                print(f"  python q3.py --mode train_vae --epochs 50 --dataset {dataset} --save_dir {save_dir}")
+        return
+
+    # Run experiments on selected datasets
+    all_results = {}
+    for dataset, vae_path, save_dir, name in datasets_to_run:
+        print(f"\n{'='*70}")
+        print(f"Running experiments on {name}")
+        print(f"{'='*70}\n")
+
+        cmd = [
+            'python', 'q3.py',
+            '--mode', 'run_all',
+            '--vae_checkpoint', vae_path,
+            '--dataset', dataset,
+            '--save_dir', save_dir
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        print(result.stdout)
+        if result.stderr:
+            print("Errors:", result.stderr)
+
+        if result.returncode != 0:
+            print(f"\n⚠️  Experiments failed for {name}. Please check the output above.")
+            return
+
+        # Extract results
+        csv_path = os.path.join(save_dir, 'all_results.csv')
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            results = {}
+            for _, row in df.iterrows():
+                results[int(row['n_labels'])] = float(row['test_error_rate'])
+            all_results[name] = results
+        else:
+            print(f"\n⚠️  Could not load results for {name}. Please check if experiments completed successfully.")
+            return
+
+    # Paper results (from Table 1)
+    paper_results = {100: 11.82, 600: 5.72, 1000: 4.24, 3000: 3.49}
+    n_labels_list = [100, 600, 1000, 3000]
+
+    # Generate results table
+    print("\n" + "="*90)
+    if args.datasets == 'both':
+        print("COMBINED RESULTS TABLE - MNIST vs Fashion MNIST")
+        print("="*90)
+        print(f"{'N Labels':<12} | {'Paper (M1+TSVM)':<18} | {'MNIST (M1+SVM)':<18} | {'Fashion MNIST (M1+SVM)':<22}")
+    elif args.datasets == 'mnist':
+        print("RESULTS TABLE - MNIST")
+        print("="*90)
+        print(f"{'N Labels':<12} | {'Paper (M1+TSVM)':<18} | {'MNIST (M1+SVM)':<18}")
+    else:
+        print("RESULTS TABLE - Fashion MNIST")
+        print("="*90)
+        print(f"{'N Labels':<12} | {'Paper (M1+TSVM)':<18} | {'Fashion MNIST (M1+SVM)':<22}")
+    print("-"*90)
+
+    for n_labels in n_labels_list:
+        paper = paper_results.get(n_labels, float('nan'))
+        line = f"{n_labels:<12} | {paper:<18.2f}"
+
+        if 'MNIST' in all_results:
+            mnist = all_results['MNIST'].get(n_labels, float('nan'))
+            line += f" | {mnist:<18.2f}"
+
+        if 'Fashion MNIST' in all_results:
+            fashion = all_results['Fashion MNIST'].get(n_labels, float('nan'))
+            line += f" | {fashion:<22.2f}"
+
+        print(line)
+
+    print("="*90)
+
+    # Calculate average differences
+    if args.datasets == 'both' and 'MNIST' in all_results and 'Fashion MNIST' in all_results:
+        print("\nAnalysis:")
+        print("-"*90)
+
+        mnist_results = all_results['MNIST']
+        fashion_results = all_results['Fashion MNIST']
+
+        # MNIST vs Paper
+        mnist_diffs = [mnist_results.get(n, 0) - paper_results.get(n, 0) for n in n_labels_list]
+        avg_mnist_diff = sum(mnist_diffs) / len(mnist_diffs)
+        print(f"MNIST (M1+SVM) vs Paper (M1+TSVM):    {avg_mnist_diff:+.2f}% average difference")
+
+        # Fashion MNIST vs MNIST
+        fashion_diffs = [fashion_results.get(n, 0) - mnist_results.get(n, 0) for n in n_labels_list]
+        avg_fashion_diff = sum(fashion_diffs) / len(fashion_diffs)
+        print(f"Fashion MNIST vs MNIST:               {avg_fashion_diff:+.2f}% average difference")
+
+        # Fashion MNIST vs Paper
+        fashion_paper_diffs = [fashion_results.get(n, 0) - paper_results.get(n, 0) for n in n_labels_list]
+        avg_fashion_paper_diff = sum(fashion_paper_diffs) / len(fashion_paper_diffs)
+        print(f"Fashion MNIST vs Paper:               {avg_fashion_paper_diff:+.2f}% average difference")
+
+        print("-"*90)
+    elif args.datasets == 'mnist' and 'MNIST' in all_results:
+        print("\nAnalysis:")
+        print("-"*90)
+        mnist_results = all_results['MNIST']
+        mnist_diffs = [mnist_results.get(n, 0) - paper_results.get(n, 0) for n in n_labels_list]
+        avg_mnist_diff = sum(mnist_diffs) / len(mnist_diffs)
+        print(f"MNIST (M1+SVM) vs Paper (M1+TSVM):    {avg_mnist_diff:+.2f}% average difference")
+        print("-"*90)
+    elif args.datasets == 'fashion' and 'Fashion MNIST' in all_results:
+        print("\nAnalysis:")
+        print("-"*90)
+        fashion_results = all_results['Fashion MNIST']
+        fashion_paper_diffs = [fashion_results.get(n, 0) - paper_results.get(n, 0) for n in n_labels_list]
+        avg_fashion_paper_diff = sum(fashion_paper_diffs) / len(fashion_paper_diffs)
+        print(f"Fashion MNIST vs Paper:               {avg_fashion_paper_diff:+.2f}% average difference")
+        print("-"*90)
+
+    # Save results
+    if args.datasets == 'both' and 'MNIST' in all_results and 'Fashion MNIST' in all_results:
+        combined_df = pd.DataFrame({
+            'n_labels': n_labels_list,
+            'paper_m1_tsvm': [paper_results[n] for n in n_labels_list],
+            'mnist_m1_svm': [all_results['MNIST'][n] for n in n_labels_list],
+            'fashion_mnist_m1_svm': [all_results['Fashion MNIST'][n] for n in n_labels_list]
+        })
+        combined_csv = 'combined_results.csv'
+        combined_df.to_csv(combined_csv, index=False)
+        print(f"\nCombined results saved to: {combined_csv}")
+
+    print("\nNotes:")
+    print("  - Paper uses MNIST with transductive SVM (M1+TSVM)")
+    print("  - Our implementation uses regular SVM (M1+SVM)")
+    if args.datasets == 'both':
+        print("  - Fashion MNIST is more challenging than MNIST")
+    print("="*90)
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -549,8 +723,8 @@ def main():
 
     # Mode selection
     parser.add_argument('--mode', type=str, required=True,
-                        choices=['train_vae', 'train_svm', 'run_all'],
-                        help='Mode: train_vae, train_svm, or run_all')
+                        choices=['train_vae', 'train_svm', 'run_all', 'compare'],
+                        help='Mode: train_vae, train_svm, run_all, or compare')
 
     # VAE training parameters
     parser.add_argument('--epochs', type=int, default=50, help='number of epochs for VAE training')
@@ -579,6 +753,18 @@ def main():
     parser.add_argument('--data_dir', type=str, default='.', help='directory for dataset (contains MNIST/FashionMNIST folder)')
     parser.add_argument('--seed', type=int, default=42, help='random seed')
 
+    # Compare mode parameters
+    parser.add_argument('--datasets', type=str, default='both', choices=['fashion', 'mnist', 'both'],
+                        help='Which dataset(s) to run in compare mode: fashion, mnist, or both (default: both)')
+    parser.add_argument('--mnist_vae', type=str, default='./checkpoints_mnist/vae_final.pt',
+                        help='Path to MNIST VAE checkpoint (for compare mode)')
+    parser.add_argument('--fashion_vae', type=str, default='./checkpoints/vae_final.pt',
+                        help='Path to Fashion MNIST VAE checkpoint (for compare mode)')
+    parser.add_argument('--mnist_save_dir', type=str, default='./checkpoints_mnist',
+                        help='Save directory for MNIST results (for compare mode)')
+    parser.add_argument('--fashion_save_dir', type=str, default='./checkpoints',
+                        help='Save directory for Fashion MNIST results (for compare mode)')
+
     args = parser.parse_args()
 
     # Print device info once
@@ -596,6 +782,8 @@ def main():
         train_svm(args)
     elif args.mode == 'run_all':
         run_all_experiments(args)
+    elif args.mode == 'compare':
+        compare_datasets(args)
 
 
 if __name__ == '__main__':
