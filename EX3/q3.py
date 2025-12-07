@@ -738,7 +738,7 @@ def main():
                         help='disable Bernoulli sampling')
 
     # SVM training parameters
-    parser.add_argument('--vae_checkpoint', type=str, default='./checkpoints/vae_final.pt',
+    parser.add_argument('--vae_checkpoint', type=str, default='./checkpoints_fashion/vae_final.pt',
                         help='path to trained VAE model')
     parser.add_argument('--n_labels', type=int, choices=[100, 600, 1000, 3000],
                         help='number of labeled samples (for train_svm mode)')
@@ -758,11 +758,11 @@ def main():
                         help='Which dataset(s) to run in compare mode: fashion, mnist, or both (default: both)')
     parser.add_argument('--mnist_vae', type=str, default='./checkpoints_mnist/vae_final.pt',
                         help='Path to MNIST VAE checkpoint (for compare mode)')
-    parser.add_argument('--fashion_vae', type=str, default='./checkpoints/vae_final.pt',
+    parser.add_argument('--fashion_vae', type=str, default='./checkpoints_fashion/vae_final.pt',
                         help='Path to Fashion MNIST VAE checkpoint (for compare mode)')
     parser.add_argument('--mnist_save_dir', type=str, default='./checkpoints_mnist',
                         help='Save directory for MNIST results (for compare mode)')
-    parser.add_argument('--fashion_save_dir', type=str, default='./checkpoints',
+    parser.add_argument('--fashion_save_dir', type=str, default='./checkpoints_fashion',
                         help='Save directory for Fashion MNIST results (for compare mode)')
 
     args = parser.parse_args()

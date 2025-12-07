@@ -1,0 +1,6 @@
+M1 VAE + SVM Results
+============================================================
+Number of labeled samples: 1000
+SVM kernel: rbf
+Test accuracy: 74.03%
+Test error rate: 25.97%
