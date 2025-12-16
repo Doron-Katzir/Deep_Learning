@@ -1,0 +1,66 @@
+
+EX3/FashionMNIST/
+
+EX3/MNIST/
+
+# Final Project - Large files to exclude
+final_project/checkpoints/
+final_project/logs/
+final_project/results/
+final_project/data/
+final_project/figures/*.png
+final_project/figures/*.jpg
+final_project/__pycache__/
+final_project/*/__pycache__/
+
+# EX2 artifacts
+EX2/checkpoints/
+EX2/runs/
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+env/
+ENV/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model checkpoints and data (large files)
+*.pth
+*.pt
+*.ckpt
+*.h5
+*.pkl
+*.pickle
+
+# Logs
+*.log
+events.out.tfevents.*
+wandb/
+
+# Large data files
+*.zip
+*.tar
+*.tar.gz
