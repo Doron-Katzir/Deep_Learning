@@ -1,0 +1,84 @@
+# MAE Pretraining Configuration - Grid Masking for Apple Silicon (MPS)
+# Optimized for MacBook with MPS (Metal Performance Shaders)
+
+# Model architecture (ViT-Tiny)
+model:
+  type: mae_vit_tiny
+  img_size: 64  # TinyImageNet resolution
+  patch_size: 16
+  in_chans: 3
+  embed_dim: 192
+  depth: 12
+  num_heads: 3
+  decoder_embed_dim: 512
+  decoder_depth: 4
+  decoder_num_heads: 8
+  mlp_ratio: 4.0
+  norm_pix_loss: true
+
+# Masking strategy
+masking:
+  type: grid  # Grid-based structured masking
+  mask_ratio: 0.75  # Fraction of patches to mask (0.5, 0.75, 0.9)
+  pattern: checkerboard  # Options: checkerboard, stripes_h, stripes_v, blocks
+
+# Dataset
+data:
+  dataset: tinyimagenet
+  data_path: ./data/tiny-imagenet-200
+  batch_size: 64  # Reduced for MPS (adjust based on your RAM)
+  num_workers: 0  # Important: Set to 0 for MPS to avoid multiprocessing issues
+  pin_memory: false  # Important: Disable for MPS
+
+# Data augmentation
+augmentation:
+  # Minimal augmentation for MAE (as per paper)
+  random_resized_crop:
+    size: 64
+    scale: [0.67, 1.0]
+    ratio: [0.75, 1.33]
+  horizontal_flip: true
+  color_jitter: null  # Not used in MAE
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# Training
+training:
+  epochs: 100
+  warmup_epochs: 10
+
+  # Optimizer
+  optimizer: adamw
+  lr: 1.5e-4  # Base LR for batch size 128 (scaled for smaller batch)
+  weight_decay: 0.05
+  betas: [0.9, 0.95]
+
+  # Learning rate schedule
+  lr_schedule: cosine
+  min_lr: 0.0
+
+  # Mixed precision training
+  use_amp: false  # Disable AMP for MPS (not fully supported)
+
+  # Gradient clipping
+  clip_grad: null  # No clipping needed for MAE
+
+  # Logging
+  log_interval: 50  # Log every N batches
+  save_interval: 10  # Save checkpoint every N epochs
+
+# System
+system:
+  seed: 42
+  device: mps  # Use Apple Silicon GPU
+  output_dir: ./checkpoints
+  log_dir: ./logs
+  resume: null  # Path to checkpoint to resume from
+
+# Experiment tracking
+wandb:
+  enabled: false  # Set to true to use Weights & Biases
+  project: mae-structured-masking
+  entity: null
+  name: baseline-random-mask-0.75-mps
