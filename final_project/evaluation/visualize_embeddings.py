@@ -81,7 +81,7 @@ def visualize_embeddings(
 
     if method == 'tsne':
         # t-SNE: nonlinear, preserves local structure
-        reducer = TSNE(n_components=2, random_state=42, perplexity=30, n_iter=1000)
+        reducer = TSNE(n_components=2, random_state=42, perplexity=30, max_iter=1000)
         embeddings_2d = reducer.fit_transform(features)
     elif method == 'pca':
         # PCA: linear, preserves global structure
@@ -154,13 +154,18 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    # Setup device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Setup device (support MPS for Apple Silicon)
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     print(f"Using device: {device}")
 
     # Load model
     print(f"Loading checkpoint: {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
 
     model = mae_vit_tiny(img_size=64, patch_size=16)
     model.load_state_dict(checkpoint['model'], strict=False)

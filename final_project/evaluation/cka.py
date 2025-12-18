@@ -216,7 +216,15 @@ def compute_cka_matrix(checkpoints: List[Path], dataloader: DataLoader, kernel: 
     Returns:
         (n_models, n_models) CKA similarity matrix
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Setup device (support MPS for Apple Silicon)
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+    print(f"Using device: {device}")
+
     n_models = len(checkpoints)
 
     # Extract features from all models
@@ -225,7 +233,7 @@ def compute_cka_matrix(checkpoints: List[Path], dataloader: DataLoader, kernel: 
 
     for ckpt_path in checkpoints:
         print(f"\nLoading checkpoint: {ckpt_path.name}")
-        checkpoint = torch.load(ckpt_path, map_location=device)
+        checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
 
         # Load model
         model = mae_vit_tiny(img_size=64, patch_size=16)

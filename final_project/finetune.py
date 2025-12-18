@@ -135,8 +135,9 @@ def get_cifar100_loaders(data_fraction: float = 1.0, batch_size: int = 128, img_
         train_dataset = Subset(train_dataset, indices)
         print(f"Using {num_samples}/{num_train} training samples ({data_fraction*100:.1f}%)")
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    # num_workers=0 and pin_memory=False for MPS compatibility
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False)
 
     return train_loader, val_loader
 
@@ -243,12 +244,18 @@ def main():
     args = parse_args()
     set_seed(args.seed)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Setup device (support MPS for Apple Silicon)
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     print(f"Using device: {device}")
 
     # Load pretrained encoder
     print(f"Loading checkpoint from {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
 
     encoder = mae_vit_tiny(img_size=64, patch_size=16)
     encoder.load_state_dict(checkpoint['model'], strict=False)

@@ -328,7 +328,7 @@ def main():
     # Resume from checkpoint if specified
     if args.resume:
         print(f"Resuming from checkpoint: {args.resume}")
-        checkpoint = torch.load(args.resume)
+        checkpoint = torch.load(args.resume, weights_only=False)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         scaler.load_state_dict(checkpoint['scaler'])

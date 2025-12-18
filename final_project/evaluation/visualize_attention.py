@@ -150,13 +150,18 @@ def main():
     parser.add_argument('--num_heads', type=int, default=6, help='Number of attention heads to show')
     args = parser.parse_args()
 
-    # Setup device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Setup device (support MPS for Apple Silicon)
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     print(f"Using device: {device}")
 
     # Load model
     print(f"Loading checkpoint: {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
 
     model = mae_vit_tiny(img_size=64, patch_size=16)
     model.load_state_dict(checkpoint['model'], strict=False)
