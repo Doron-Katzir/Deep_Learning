@@ -221,7 +221,7 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    dataset = TinyImageNet(root='./data', split='val', transform=transform)
+    dataset = TinyImageNet(root='./data/tiny-imagenet-200', split='val', transform=transform)
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.num_images,
